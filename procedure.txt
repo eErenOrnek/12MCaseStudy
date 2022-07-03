@@ -1,0 +1,66 @@
+CREATE OR ALTER PROCEDURE ListStocks
+	(
+		@MalKodu VARCHAR(30), 
+		@BaslangicTarih DATETIME, 
+		@BitisTarih DATETIME
+	)
+AS
+BEGIN
+SET NOCOUNT ON
+
+DECLARE @SiraNo INT;
+DECLARE @IslemTurSonuc VARCHAR(5);
+DECLARE @EvrakNoSonuc VARCHAR(16);
+DECLARE @TarihSonuc VARCHAR(10);
+DECLARE @GirisMiktarSonuc NUMERIC(25, 6);
+DECLARE @CikisMiktarSonuc NUMERIC(25, 6);
+DECLARE @StokMiktar NUMERIC(25, 6);
+
+DECLARE @SonucTablo TABLE(SiraNo INT, IslemTur VARCHAR(5), EvrakNo VARCHAR(16), Tarih VARCHAR(15), GirisMiktar NUMERIC(25, 6), CikisMiktar NUMERIC(25, 6), StokMiktar NUMERIC(25, 6));
+
+DECLARE StockCursor CURSOR FOR SELECT
+	ROW_NUMBER() OVER (ORDER BY (SELECT 1)) AS SiraNo,	   -- Satýr numarasýný hesaplar 
+	CASE STI.IslemTur									   -- Ýþlem türü 0 ise 'Giriþ', 1 ise 'Çýkýþ'
+		WHEN 0 THEN 'Giriþ'				
+		WHEN 1 THEN 'Çýkýþ'
+		ELSE 'Bilinmeyen'							   -- 1 ve 0 haricinde bir deðer gelirse, bu sütunda 'Bilinmeyen' çýktýsý verir
+	END AS IslemTur,
+	STI.EvrakNo AS EvrakNo,
+	CONVERT(VARCHAR(15), CAST(STI.Tarih - 2 AS DATETIME), 104) AS Tarih, -- Timestamp'i datetime tipine çevirir
+	CASE STI.IslemTur									   -- Ýþlem türü 0 ise 'Miktar' alaný giriþ miktarý olarak kabul edilir. Baþka bir deðer ise 0 deðerini alýr.
+		WHEN 0 THEN Miktar
+		ELSE 0
+	END AS GirisMiktar,
+	CASE STI.IslemTur									   -- Ýþlem türü 1 ise 'Miktar' alaný çýkýþ miktarý olarak kabul edilir. Baþka bir deðer ise 0 deðerini alýr.
+		WHEN 1 THEN Miktar
+		ELSE 0
+	END AS CikisMiktar
+FROM STI
+WHERE 
+	CAST(STI.Tarih - 2 AS DATETIME) BETWEEN @BaslangicTarih AND @BitisTarih
+	AND
+	STI.MalKodu = @MalKodu
+ORDER BY STI.Tarih ASC;
+
+
+OPEN StockCursor;
+FETCH NEXT FROM StockCursor INTO @SiraNo, @IslemTurSonuc, @EvrakNoSonuc, @TarihSonuc, @GirisMiktarSonuc, @CikisMiktarSonuc;
+
+SET @StokMiktar = 0;
+
+WHILE (@@FETCH_STATUS = 0)
+BEGIN
+    SET @StokMiktar += @GirisMiktarSonuc;	-- Giriþ miktarý kadar eklenir
+	SET @StokMiktar -= @CikisMiktarSonuc;	-- Çýkýþ miktarý kadar çýkarýlýr
+	
+	INSERT INTO @SonucTablo VALUES (@SiraNo, @IslemTurSonuc, @EvrakNoSonuc, @TarihSonuc, @GirisMiktarSonuc, @CikisMiktarSonuc, @StokMiktar);
+
+    FETCH NEXT FROM StockCursor INTO @SiraNo, @IslemTurSonuc, @EvrakNoSonuc, @TarihSonuc, @GirisMiktarSonuc, @CikisMiktarSonuc;
+END
+
+CLOSE StockCursor;
+DEALLOCATE StockCursor;
+
+SELECT * FROM @SonucTablo;
+
+END
