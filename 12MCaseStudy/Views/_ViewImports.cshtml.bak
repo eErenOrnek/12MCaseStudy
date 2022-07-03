@@ -1,0 +1,3 @@
+﻿@using _12MCaseStudy
+@using _12MCaseStudy.Models
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers

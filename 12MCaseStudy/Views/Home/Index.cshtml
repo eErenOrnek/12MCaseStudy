@@ -1,0 +1,178 @@
+﻿@{
+    ViewData["Title"] = "Home Page";
+}
+<div class="dx-fieldset">
+    <div class="dx-fieldset-header">Alanları doldurun</div>
+    <div class="dx-field">
+        <div class="dx-field-label">Mal Kodu</div>
+        <div class="dx-field-value">
+            @(Html.DevExtreme().SelectBox().ID("mal-kodu")
+                        .DataSource(d => d.Mvc().LoadAction("GetStkModelList").Key("Id"))
+                        .Placeholder("Mal seçimi yapınız...")
+                        .ShowClearButton(true)
+                        .DisplayExpr(new JS("onDisplay"))
+                        .ValueExpr("MalKodu")
+                        .SearchExpr("MalKodu", "MalAdi")
+                        .SearchEnabled(true)
+             )
+        </div>
+    </div>
+    <div class="dx-field">
+        <div class="dx-field-label">Başlangıç Tarihi</div>
+        <div class="dx-field-value">
+            @(Html.DevExtreme().DateBox().ID("baslangic-tarihi")
+                .Type(DateBoxType.Date)
+                .Value(DateTime.Now)
+                .DisplayFormat("dd.MM.yyyy")
+            )
+        </div>
+    </div>
+    <div class="dx-field">
+        <div class="dx-field-label">Bitiş Tarihi</div>
+        <div class="dx-field-value">
+            @(Html.DevExtreme().DateBox().ID("bitis-tarihi")
+                .Type(DateBoxType.Date)
+                .Value(DateTime.Now.AddDays(1))
+                .DisplayFormat("dd.MM.yyyy")
+            )
+        </div>
+    </div>
+    <div>
+        @(Html.DevExtreme().Button()
+                        .Text("Listele")
+                        .Type(ButtonType.Default)
+                        .StylingMode(ButtonStylingMode.Contained)
+                        .Width(120)
+                        .OnClick("onSubmit")
+                    )
+    </div>
+</div>
+@(Html.DevExtreme().DataGrid<StockModel>()
+    .NoDataText("Gösterilecek veri yok.") // DataGrid'de gösterilecek veri olmadığında çıkacak olan yazı
+    .ID("dataGrid") // JS fonksiyonlarında DataGrid'e ulaşmak için verilen ID
+    .Height(500) // DataGrid'in yüksekliği(px)
+    .Scrolling(scrolling => scrolling.Mode(GridScrollingMode.Infinite)) // Herhangi bir sayfalama olmaması için scrolling modu
+    .ShowBorders(true) // DataGrid için dış border oluşturma
+    .ShowColumnLines(true) // Sütunları ayırmak için dikey çizgiler
+    .ShowRowLines(true) // Satır çizgileri
+    .RowAlternationEnabled(true) // Satır renklerinin değişmesini sağlar
+    .KeyExpr("SiraNo") // Datamodel'in ID'si
+    .DataSource(d => d.Mvc().Controller("Home").LoadAction("GetStocks").Key("SiraNo").OnBeforeSend("onBeforeSend")) // Verinin alınacağı endpoint. onBeforeSend procedure'a gönderilecek olan
+                                                                                                                    // parametrelerin endpoint'e query parametresi olarak gönderilmesini sağlar.
+    .Selection(s => s.Mode(SelectionMode.Multiple)) // Birden fazla satır seçilebilmesini sağlar
+    .AllowColumnReordering(true) // Sütunların sırası değiştirilebilir
+    .AllowColumnResizing(true) // Sütun boyutları ayarlanabilir
+    .ColumnChooser(c => c.Enabled(true).Mode(GridColumnChooserMode.Select).Title("Sütun Seçiniz")) // Hangi sütunların görüntüleneceğini seçmeyi sağlar
+    .ColumnFixing(c => c.Enabled(true).Texts(conf => conf.Fix("Sabitle").Unfix("Sabitlemeyi Kaldır").LeftPosition("Sola Sabitle").RightPosition("Sağa Sabitle"))) // Sütunu sabitlemeyi sağlar
+    .ColumnAutoWidth(true) // Sütunlar için autosize özelliği
+    .FilterPanel(f => f.Visible(true).Texts(conf => conf.CreateFilter("Filtre oluştur").ClearFilter("Filtreyi temizle"))) // Gelişmiş filtre panelini etkinleştirir
+    .FilterRow(f => f.Visible(true)) // Sütun bazında filtrelemeye izin verir
+    .Grouping(grouping => grouping.AutoExpandAll(true)
+        .Texts(conf => conf.GroupByThisColumn("Grupla").Ungroup("Gruplamayı kaldır").GroupContinuedMessage("Grupla").GroupContinuesMessage("Grupla"))
+        .AllowCollapsing(true).ExpandMode(GridGroupingExpandMode.RowClick)) // Sütunlara göre veri gruplamasını sağlar
+    .SearchPanel(searchPanel => searchPanel.Visible(true).Placeholder("Ara...")) // Bütün sütunlarda aramayı sağlar
+    .GroupPanel(groupPanel => groupPanel.Visible(true).EmptyPanelText("Gruplamak için istediğiniz sütunu sürükleyip bırakın.")) // Gruplama yapıldıktan sonraki panel konfigürasyonu
+    .Export(e => e.Enabled(true)
+        .AllowExportSelectedData(true)
+        .Texts(conf => conf.ExportAll("Tümünü dışa aktar").ExportTo("Dışa aktar...").ExportSelectedRows("Seçilen satırları dışa aktar")) // Excel export
+    )
+    .OnExporting("exporting") // Excel'e exportlayan JS fonksiyonu
+    .Columns(c => { // Sütunları veri tipleri ile beraber ekler
+        c.AddFor(m => m.SiraNo).Caption("Sıra No.").DataType(GridColumnDataType.Number).SortOrder(SortOrder.Asc);
+        c.AddFor(m => m.IslemTur).Caption("İşlem Türü").DataType(GridColumnDataType.String);
+        c.AddFor(m => m.EvrakNo).Caption("Evrak No.").DataType(GridColumnDataType.String);
+        c.AddFor(m => m.Tarih).Caption("Tarih").DataType(GridColumnDataType.Date).Format(Format.ShortDate);
+        c.AddFor(m => m.GirisMiktar).Caption("Giriş Miktarı").DataType(GridColumnDataType.Number);
+        c.AddFor(m => m.CikisMiktar).Caption("Çıkış Miktarı").DataType(GridColumnDataType.Number);
+        c.AddFor(m => m.StokMiktar).Caption("Stok Miktarı").DataType(GridColumnDataType.Number);
+    }).Summary(s => s.TotalItems(items => { // Gridin footerına gridin özeti yazılır
+        items.AddFor(m => m.SiraNo)
+            .SummaryType(SummaryType.Count)
+            .CustomizeText(@<text>
+                function(data) { return "Kayıt Sayısı: " + data.value; }
+            </text>);
+
+        items.AddFor(m => m.GirisMiktar)
+            .SummaryType(SummaryType.Sum)
+            .CustomizeText(@<text>
+                function(data) { return "Toplam: " + data.value; }
+            </text>);
+
+        items.AddFor(m => m.CikisMiktar)
+            .SummaryType(SummaryType.Sum)
+            .CustomizeText(@<text>
+                function(data) { return "Toplam: " + data.value; }
+            </text>);
+    })
+    )
+)
+
+<script>
+    function onDisplay(data) { // Mal kodu ve mal adını comboboxta beraber göstermeyi sağlayan fonksiyon
+        if (data) {
+            return data.MalKodu + ' - ' + data.MalAdi;
+        }
+        return '';
+    }
+
+    function getMalKodu() { // Comboboxtan mal kodunun değerini döndürür
+        return $("#mal-kodu").dxSelectBox("instance").option("value");
+    }
+
+    function getBaslangicTarihi() { // Dateboxtan başlangıç tarihi değerini döndürür
+        return $("#baslangic-tarihi").dxDateBox("instance").option("value");
+    }
+
+    function getBitisTarihi() { // Dateboxtan bitiş tarihi değerini döndürür
+        return $("#bitis-tarihi").dxDateBox("instance").option("value");
+    }
+
+    function onSubmit(e) { // Listele butonuna tıklandıktan sonra çağırılan fonksiyon
+        var malKodu = getMalKodu();
+        if (!malKodu) { // Mal kodu boş ise uyarı mesajı döndürür
+            DevExpress.ui.notify({ message: "Mal kodu boş bırakılamaz!", width: 500, shading: false, position: "top center" }, "error", 2000);
+            return;
+        }
+
+        var baslangicTarihi = getBaslangicTarihi();
+        if (!baslangicTarihi) { // Başlangıç tarihi boş ise uyarı mesajı döndürür
+            DevExpress.ui.notify({ message: "Başlangıç tarihi boş bırakılamaz!", width: 500, shading: false, position: "top center" }, "error", 2000);
+            return;
+        }
+
+        var bitisTarihi = getBitisTarihi();
+        if (!bitisTarihi) { // Bitiş tarihi boş ise uyarı mesajı döndürür
+            DevExpress.ui.notify({ message: "Bitiş tarihi boş bırakılamaz!", width: 500, shading: false, position: "top center" }, "error", 2000);
+            return;
+        }
+
+        if (baslangicTarihi.getTime() > bitisTarihi.getTime()) { // Başlangıç tarihi bitiş tarihinden sonra ise uyarı mesajı döndürür
+            DevExpress.ui.notify({ message: "Başlangıç tarihi, bitiş tarihinden önce olmalıdır!", width: 500, shading: false, position: "top center" }, "error", 2000);
+            return;
+        }
+
+        $("#dataGrid").dxDataGrid("getDataSource").reload(); // Eğer formda validasyon hatası yok ise ilgili parametrelerle gridin datası update edilir
+    }
+
+    function onBeforeSend(method, ajaxOptions) { // Grid datası için istek göndermeden önce query parametreleri hazırlanır
+        ajaxOptions.data.malKodu = getMalKodu();
+        ajaxOptions.data.baslangicTarihi = getBaslangicTarihi().toISOString().split('T')[0];    // ISO format -> 2022-09-22T13:00:00.123+03:00
+        ajaxOptions.data.bitisTarihi = getBitisTarihi().toISOString().split('T')[0];            // ISO format -> 2022-09-22T13:00:00.123+03:00
+    }
+
+    function exporting(e) { // Gridin excele exportlanmasını sağlayan kod
+        var workbook = new ExcelJS.Workbook();
+        var worksheet = workbook.addWorksheet('Stocks');
+
+        DevExpress.excelExporter.exportDataGrid({
+            component: e.component,
+            worksheet: worksheet,
+            autoFilterEnabled: true
+        }).then(function () {
+            workbook.xlsx.writeBuffer().then(function (buffer) {
+                saveAs(new Blob([buffer], { type: 'application/octet-stream' }), 'Stocks.xlsx');
+            });
+        });
+        e.cancel = true;
+    }
+</script>
